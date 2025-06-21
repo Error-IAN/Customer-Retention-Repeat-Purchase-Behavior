@@ -1,0 +1,30 @@
+WITH ranked_purchases AS (
+  SELECT 
+    Customer_Name,
+    Customer_Category,
+    DATE(Date) AS purchase_date,
+    ROW_NUMBER() OVER (PARTITION BY Customer_Name ORDER BY DATE(Date)) AS purchase_rank
+  FROM `your_project.retail_transaction.chohort_analysis`
+),
+
+first_second_purchases AS (
+  SELECT 
+    f.Customer_Name,
+    f.Customer_Category,
+    f.purchase_date AS first_purchase,
+    s.purchase_date AS second_purchase,
+    DATE_DIFF(s.purchase_date, f.purchase_date, DAY) AS gap_in_days
+  FROM ranked_purchases f
+  LEFT JOIN ranked_purchases s
+    ON f.Customer_Name = s.Customer_Name AND s.purchase_rank = 2
+  WHERE f.purchase_rank = 1
+)
+
+SELECT 
+  Customer_Category,
+  COUNT(*) AS total_customers,
+  COUNT(second_purchase) AS repeat_customers,
+  ROUND(AVG(gap_in_days), 1) AS avg_days_between_first_second
+FROM first_second_purchases
+GROUP BY Customer_Category
+ORDER BY total_customers DESC;

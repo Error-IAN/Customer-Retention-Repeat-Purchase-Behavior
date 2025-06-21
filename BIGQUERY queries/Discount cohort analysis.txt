@@ -1,0 +1,69 @@
+--EDA OF DISCOUNT APPLIED
+
+
+SELECT 
+  DATE_TRUNC(DATE(Date), MONTH) AS cohort_month,
+  COUNTIF(Discount_Applied = TRUE) AS discounted_first_txns,
+  COUNT(*) AS total_first_txns,
+  ROUND(COUNTIF(Discount_Applied = TRUE) * 100.0 / COUNT(*), 2) AS discount_pct
+FROM (
+  SELECT 
+    Customer_Name,
+    MIN(Date) AS first_purchase_date
+  FROM `retail_transaction.chohort_analysis`
+  GROUP BY Customer_Name
+) first_txns
+JOIN `retail_transaction.chohort_analysis` raw
+ON first_txns.Customer_Name = raw.Customer_Name AND first_txns.first_purchase_date = raw.Date
+GROUP BY cohort_month
+ORDER BY cohort_month;
+
+-- COhort analysis by discount
+WITH base AS (
+  SELECT 
+    Customer_Name,
+    MIN(Date) AS first_purchase_date,
+    ANY_VALUE(Discount_Applied) AS used_discount
+  FROM `retail_transaction.chohort_analysis`
+  GROUP BY Customer_Name
+),
+
+transactions_with_discount_flag AS (
+  SELECT 
+    t.Customer_Name,
+    DATE_TRUNC(DATE(t.Date), MONTH) AS txn_month,
+    DATE_TRUNC(DATE(b.first_purchase_date), MONTH) AS cohort_month,
+    b.used_discount
+  FROM `retail_transaction.chohort_analysis` t
+  JOIN base b ON t.Customer_Name = b.Customer_Name
+),
+
+cohort_table AS (
+  SELECT 
+    used_discount,
+    cohort_month,
+    txn_month,
+    DATE_DIFF(txn_month, cohort_month, MONTH) AS cohort_age,
+    COUNT(DISTINCT Customer_Name) AS active_users
+  FROM transactions_with_discount_flag
+  GROUP BY used_discount, cohort_month, txn_month
+),
+
+cohort_base AS (
+  SELECT cohort_month, used_discount, MAX(active_users) AS base_users
+  FROM cohort_table
+  WHERE cohort_age = 0
+  GROUP BY cohort_month, used_discount
+)
+
+SELECT 
+  c.used_discount,
+  c.cohort_month,
+  c.cohort_age,
+  c.active_users,
+  b.base_users,
+  ROUND(c.active_users * 100.0 / b.base_users, 2) AS retention_rate
+FROM cohort_table c
+JOIN cohort_base b 
+  ON c.cohort_month = b.cohort_month AND c.used_discount = b.used_discount
+ORDER BY c.used_discount, c.cohort_month, c.cohort_age;

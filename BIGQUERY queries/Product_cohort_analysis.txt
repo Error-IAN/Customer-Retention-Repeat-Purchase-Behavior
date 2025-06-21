@@ -1,0 +1,126 @@
+select * from `retail_transaction.chohort_analysis` limit 5;
+
+
+SELECT 
+  Discount_Applied,
+  COUNT(*) AS discount_count,
+  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS discount_percent
+FROM `retail_transaction.chohort_analysis`
+GROUP BY Discount_Applied;
+
+select Customer_Category,
+ROUND(COUNT(Discount_Applied) * 100.0 / SUM(COUNT(Discount_Applied)) OVER (), 2) as discount_given
+from `retail_transaction.chohort_analysis`
+where Discount_Applied = true
+group by 1
+order by 2
+;
+
+with product_name as(
+  select product,
+  Total_cost
+  from `retail_transaction.chohort_analysis`,
+UNNEST(SPLIT(REPLACE(REPLACE(REPLACE(product, '[', ''), ']', ''), '', ''), ', ')) AS product
+)
+select 
+product,
+round(sum(Total_cost),2) as revenue
+from product_name
+group by 1
+order by 2 desc
+limit 15;
+
+
+-- Step 1: Normalize product list and attach revenue
+WITH exploded_products AS (
+  SELECT 
+    Customer_Name,
+    DATE(Date) AS purchase_date,
+    Total_cost,
+    TRIM(REPLACE(REPLACE(REPLACE(product_item, '[', ''), ']', ''), "'", '')) AS product
+  FROM `retail_transaction.chohort_analysis`,
+  UNNEST(SPLIT(product, ',')) AS product_item
+),
+
+-- Step 2: Get revenue per product
+product_revenue AS (
+  SELECT 
+    product,
+    ROUND(SUM(Total_cost), 2) AS revenue
+  FROM exploded_products
+  GROUP BY product
+),
+
+-- Step 3: Get top 15 products by revenue
+top_15_products AS (
+  SELECT product
+  FROM product_revenue
+  ORDER BY revenue DESC
+  LIMIT 15
+),
+
+-- Step 4: First purchase date per customer
+first_purchase_date AS (
+  SELECT 
+    Customer_Name,
+    MIN(purchase_date) AS first_purchase_date
+  FROM exploded_products
+  GROUP BY Customer_Name
+),
+
+-- Step 5: Get first product(s) per customer
+first_product_per_customer AS (
+  SELECT 
+    e.Customer_Name,
+    f.first_purchase_date,
+    DATE_TRUNC(f.first_purchase_date, MONTH) AS cohort_month,
+    MIN(e.product) AS first_product
+  FROM exploded_products e
+  JOIN first_purchase_date f 
+    ON e.Customer_Name = f.Customer_Name AND e.purchase_date = f.first_purchase_date
+  WHERE e.product IN (SELECT product FROM top_15_products)
+  GROUP BY e.Customer_Name, f.first_purchase_date
+),
+
+-- Step 6: All transactions with cohort info for customers who had top 15 products as first
+transactions_with_cohort AS (
+  SELECT 
+    e.Customer_Name,
+    DATE_TRUNC(e.purchase_date, MONTH) AS txn_month,
+    f.cohort_month,
+    f.first_product
+  FROM exploded_products e
+  JOIN first_product_per_customer f
+    ON e.Customer_Name = f.Customer_Name
+),
+
+-- Step 7: Aggregate by cohort
+cohort_retention_by_product AS (
+  SELECT 
+    first_product,
+    cohort_month,
+    txn_month,
+    DATE_DIFF(txn_month, cohort_month, MONTH) AS cohort_age,
+    COUNT(DISTINCT e.Customer_Name) AS active_customers
+  FROM transactions_with_cohort e
+  GROUP BY first_product, cohort_month, txn_month
+),
+
+-- Step 8: Add retention percentage
+cohort_with_retention_pct AS (
+  SELECT 
+    *,
+    ROUND(
+      active_customers * 100.0 /
+      FIRST_VALUE(active_customers) OVER (
+        PARTITION BY first_product, cohort_month
+        ORDER BY cohort_age
+      ), 2
+    ) AS retention_pct
+  FROM cohort_retention_by_product
+)
+
+-- Final result
+SELECT * 
+FROM cohort_with_retention_pct
+ORDER BY first_product, cohort_month, cohort_age;

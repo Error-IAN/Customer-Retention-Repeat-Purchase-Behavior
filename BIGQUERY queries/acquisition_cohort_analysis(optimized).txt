@@ -1,0 +1,41 @@
+WITH base_table AS (
+  SELECT 
+    LOWER(TRIM(Customer_Name)) AS cleaned_name,
+    DATE_TRUNC(DATE(Date), MONTH) AS txn_month,
+    MIN(DATE_TRUNC(DATE(Date), MONTH)) OVER (PARTITION BY LOWER(TRIM(Customer_Name))) AS cohort_month
+  FROM `retail_transaction.chohort_analysis`
+),
+
+cohort_with_age AS (
+  SELECT 
+    cohort_month,
+    txn_month,
+    DATE_DIFF(txn_month, cohort_month, MONTH) AS cohort_age,
+    COUNT(DISTINCT cleaned_name) AS active_users
+  FROM base_table
+  GROUP BY cohort_month, txn_month
+),
+
+base_users AS (
+  SELECT 
+    cohort_month,
+    active_users AS cohort_size
+  FROM cohort_with_age
+  WHERE cohort_age = 0
+),
+
+final_table AS (
+  SELECT 
+    cwa.cohort_month,
+    cwa.txn_month,
+    cwa.cohort_age,
+    cwa.active_users,
+    bu.cohort_size,
+    ROUND(cwa.active_users * 1.0 / bu.cohort_size, 4) AS retention_rate,
+    ROUND(1 - (cwa.active_users * 1.0 / bu.cohort_size), 4) AS churn_rate
+  FROM cohort_with_age cwa
+  JOIN base_users bu USING (cohort_month)
+)
+
+SELECT * FROM final_table
+ORDER BY cohort_month, cohort_age;

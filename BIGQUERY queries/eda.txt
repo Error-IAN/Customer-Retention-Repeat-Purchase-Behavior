@@ -1,0 +1,74 @@
+select * from retail_transaction.chohort_analysis limit 5;
+
+select * 
+from `retail_transaction.chohort_analysis` 
+where Customer_Name is NULL
+OR Product is NULL
+OR Total_Items is NULL
+OR Total_Cost is NULL
+OR Payment_Method IS NULL
+OR Store_Type IS NULL
+OR Discount_Applied IS NULL
+OR Customer_Category IS NULL
+OR Season IS NULL
+OR Promotion IS NULL;
+
+SELECT
+  product,
+  count(*) as product_count
+FROM `retail_transaction.chohort_analysis`,
+UNNEST(SPLIT(REPLACE(REPLACE(REPLACE(product, '[', ''), ']', ''), '', ''), ', ')) AS product
+group by 1;
+
+select distinct extract(year from Date),
+count(*) as year_count
+from `retail_transaction.chohort_analysis`
+group by 1
+order by 2 desc;
+
+SELECT
+  Customer_Name,
+  count(*) as customer_count
+FROM `retail_transaction.chohort_analysis`
+group by 1
+order by 2 desc;
+
+
+SELECT
+  date(Date),
+  lead(date(Date)) over (partition by Customer_Name order by timestamp(Date)) as next_date,
+  date_diff(
+  lead(date(Date)) over (partition by Customer_Name order by timestamp(Date)),
+   date(Date),
+   day
+  )as after_days_transaction,
+  Discount_Applied
+FROM `retail_transaction.chohort_analysis`
+where Customer_Name ="Christopher Williams"
+order by Date;
+
+SELECT
+  date(Date),
+  lead(date(Date)) over (partition by Customer_Name order by timestamp(Date)) as next_date,
+  date_diff(
+  lead(date(Date)) over (partition by Customer_Name order by timestamp(Date)),
+   date(Date),
+   day
+  )as after_days_transaction,
+  Discount_Applied
+FROM `retail_transaction.chohort_analysis`
+where Customer_Name ="Christopher Williams"
+order by Date;
+
+
+SELECT
+  date(Date),
+  lead(date(Date)) over (partition by Customer_Name order by timestamp(Date)) as next_date,
+  date_diff(
+  lead(date(Date)) over (partition by Customer_Name order by timestamp(Date)),
+   date(Date),
+   day
+  )as after_days_transaction,
+FROM `retail_transaction.chohort_analysis`
+where Customer_Name ="Christopher Williams"
+order by Date;
