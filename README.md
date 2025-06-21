@@ -1,6 +1,7 @@
 # 📊 Customer Retention & Repeat Purchase Analysis
 
-![Customer Retention Dashboard](Images/Screenshot 2025-06-14 150210.png)
+![Customer Retention Dashboard](Images/Screenshot%202025-06-14%20150210.png)
+
 
 ## 🧩 Problem Statement
 
@@ -93,7 +94,4 @@ _The percentage of customers who continue purchasing after their first transacti
 | 📆 Seasonal Buyers      | Use festive buyers’ data for targeted re-engagement before next season         |
 | 🔍 Post-2020 Changes    | Reassess fulfillment & app experience quality; reintroduce review incentives   |
 
----
-
-## 📂 Folder Structure
 
